@@ -2,11 +2,29 @@ const DatabaseError = function(statement, message) {
     this.statement = statement;
     this.message = message;
 };
+const Parser = function() {
+    const commands = new Map();
+    commands.set("createTable", /create table ([a-z]+) \((.+)\)/);
+    commands.set("insert", /insert into ([a-z]+) \((.+)\) values \((.+)\)/);
+    commands.set("select", /select (.+) from ([a-z]+)(?: where (.+))?/);
+    commands.set("delete", /delete from ([a-z]+)(?: where (.+))?/);
+
+    this.parse = function(statement) {
+        for (let [command, regexp] of commands) {
+            const parsedStatement = statement.match(regexp);
+            if (parsedStatement) {
+                return {
+                    command,
+                    parsedStatement
+                }
+            }
+        }
+    };
+};
 const database = {
     tables: {},
-    createTable(statement) {
-        const regexp = /create table ([a-z]+) \((.+)\)/;
-        const parsedStatement = statement.match(regexp);
+    parser: new Parser(),
+    createTable(parsedStatement) {
         let [,tableName, columns] = parsedStatement;
         this.tables[tableName] = {
             columns: {},
@@ -19,9 +37,7 @@ const database = {
             this.tables[tableName].columns[name] = type;
         }
     },
-    insert(statement) {
-        const regexp = /insert into ([a-z]+) \((.+)\) values \((.+)\)/;
-        const parsedStatement = statement.match(regexp);
+    insert(parsedStatement) {
         let [,tableName, columns, values] = parsedStatement;
         columns = columns.split(", ");
         values = values.split(", ");
@@ -33,9 +49,7 @@ const database = {
         }
         this.tables[tableName].data.push(row);
     },
-    select(statement) {
-        const regexp = /select (.+) from ([a-z]+)(?: where (.+))?/;
-        const parsedStatement = statement.match(regexp);
+    select(parsedStatement) {
         let [, columns, tableName, whereClause] = parsedStatement;
         columns = columns.split(", ");
         let rows = this.tables[tableName].data
@@ -54,9 +68,7 @@ const database = {
         });
         return rows;
     },
-    delete(statement) {
-        const regexp = /delete from ([a-z]+)(?: where (.+))?/;
-        const parsedStatement = statement.match(regexp);
+    delete(parsedStatement) {
         let [, tableName, whereClause] = parsedStatement;
         if (whereClause) {
             let [columnWhere, valueWhere] = whereClause.split(" = ");
@@ -68,17 +80,9 @@ const database = {
         }
     },
     execute(statement) {
-        if (statement.startsWith("create table")) {
-            return this.createTable(statement);
-        }
-        if (statement.startsWith("insert")) {
-            return this.insert(statement);
-        }
-        if (statement.startsWith("select")) {
-            return this.select(statement);
-        }
-        if (statement.startsWith("delete")) {
-            return this.delete(statement);
+        const result = this.parser.parse(statement);
+        if (result) {
+            return this[result.command](result.parsedStatement);
         }
         const message = `Syntax error: "${statement}"`;
         throw new DatabaseError(statement, message);
