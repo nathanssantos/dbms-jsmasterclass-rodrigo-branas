@@ -7,7 +7,7 @@ export class Database {
     }
 
     createTable(parsedStatement) {
-        let [,tableName, columns] = parsedStatement
+        let [, tableName, columns] = parsedStatement
         this.tables[tableName] = {
             columns: {},
             data: []
@@ -21,7 +21,7 @@ export class Database {
     }
 
     insert(parsedStatement) {
-        let [,tableName, columns, values] = parsedStatement
+        let [, tableName, columns, values] = parsedStatement
         columns = columns.split(", ")
         values = values.split(", ")
         let row = {}
@@ -66,11 +66,15 @@ export class Database {
     }
 
     execute(statement) {
-        const result = this.parser.parse(statement)
-        if (result) {
-            return this[result.command](result.parsedStatement)
-        }
-        const message = `Syntax error: "${statement}"`
-        throw new DatabaseError(statement, message)
+        return new Promise((resolve, reject) => {
+            setTimeout(() => {
+                const result = this.parser.parse(statement)
+                if (result) {
+                    resolve(this[result.command](result.parsedStatement))
+                }
+                const message = `Syntax error: "${statement}"`
+                reject(new DatabaseError(statement, message))
+            }, 1000)
+        })
     }
 }
